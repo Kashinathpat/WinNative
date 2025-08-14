@@ -1508,17 +1508,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     private void extractGraphicsDriverFiles() {
         String adrenoToolsDriverId = "";
-        String selectedDriverVersion;
 
-        String currentWrapperVersion = graphicsDriverConfig.get("version");
+        String selectedDriverVersion = graphicsDriverConfig.get("version");
         String isAdrenotoolsTurnip = graphicsDriverConfig.get("adrenotoolsTurnip");
-
-        selectedDriverVersion = currentWrapperVersion;
-
-        if (shortcut != null) {
-            currentWrapperVersion = shortcut.getExtra("wrapperGraphicsDriverVersion", graphicsDriverConfig.get("version"));
-            selectedDriverVersion = currentWrapperVersion;
-        }
 
         adrenoToolsDriverId = (selectedDriverVersion.contains(DefaultVersion.WRAPPER)) ? DefaultVersion.WRAPPER : selectedDriverVersion;
         Log.d("GraphicsDriverExtraction", "Adrenotools DriverID: " + adrenoToolsDriverId);
@@ -1536,10 +1528,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("MESA_VK_WSI_DEBUG", "sw");
         }
 
-        if (currentWrapperVersion.toLowerCase().contains("turnip") && isAdrenotoolsTurnip.equals("0"))
+        if (selectedDriverVersion.toLowerCase().contains("turnip") && isAdrenotoolsTurnip.equals("0"))
             envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/freedreno_icd.aarch64.json");
         else
             envVars.put("VK_ICD_FILENAMES", imageFs.getShareDir() + "/vulkan/icd.d/wrapper_icd.aarch64.json");
+
         envVars.put("GALLIUM_DRIVER", "zink");
         envVars.put("LIBGL_KOPPER_DISABLE", "true");
 
@@ -1574,22 +1567,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             envVars.put("MESA_VK_WSI_DEBUG", "forcesync");
 
         String disablePresentWait = graphicsDriverConfig.get("disablePresentWait");
-        envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", "1");
+        envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
         if (!vkbasaltConfig.isEmpty()) {
             envVars.put("ENABLE_VKBASALT", "1");
             envVars.put("VKBASALT_CONFIG", vkbasaltConfig);
-        }
-    }
-
-    private void copyFile(File sourceFile, File destFile) throws IOException {
-        try (InputStream inputStream = new FileInputStream(sourceFile);
-             OutputStream outputStream = new FileOutputStream(destFile)) {
-            byte[] buffer = new byte[1024];
-            int length;
-            while ((length = inputStream.read(buffer)) > 0) {
-                outputStream.write(buffer, 0, length);
-            }
         }
     }
 
@@ -1600,11 +1582,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.findViewById(R.id.BTCancel).setVisibility(View.GONE);
         dialog.show();
     }
-
-//    @Override
-//    public boolean dispatchGenericMotionEvent(MotionEvent event) {
-//        return !winHandler.onGenericMotionEvent(event) && !touchpadView.onExternalMouseEvent(event) && super.dispatchGenericMotionEvent(event);
-//    }
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
