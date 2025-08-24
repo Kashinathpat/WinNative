@@ -133,7 +133,7 @@ public class WineD3DConfigDialog extends ContentDialog {
     public static void setEnvVars(Context context, KeyValueSet config, EnvVars vars) {
         String deviceID = getDeviceIdFromGPUName(context, config.get("gpuName"));
         String vendorID = getVendorIdFromGPUName(context, config.get("vendorID"));
-        String wined3dConfig = "csmt=0x" + config.get("csmt") + ",strict_shader_math" + config.get("strict_shader_math") + ",OffscreenRenderingMode=" + config.get("OffscreenRenderingMode") + ",VideoPciDeviceID=" + deviceID + ",VideoPciVendorID=" + vendorID + ",renderer=" + config.get("renderer");
+        String wined3dConfig = "csmt=0x" + config.get("csmt") + ",strict_shader_math=" + config.get("strict_shader_math") + ",OffscreenRenderingMode=" + config.get("OffscreenRenderingMode") + ",VideoPciDeviceID=" + deviceID + ",VideoPciVendorID=" + vendorID + ",renderer=" + config.get("renderer");
         vars.put("WINE_D3D_CONFIG", wined3dConfig);
     }
 }
