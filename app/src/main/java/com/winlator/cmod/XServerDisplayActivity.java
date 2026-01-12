@@ -1527,9 +1527,23 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("WRAPPER_DISABLE_PRESENT_WAIT", disablePresentWait);
 
         String bcnEmulation = graphicsDriverConfig.get("bcnEmulation");
+        String bcnEmulationType = graphicsDriverConfig.get("bcnEmulationType");
+
         switch (bcnEmulation) {
-            case "auto" -> envVars.put("WRAPPER_EMULATE_BCN", "3");
-            case "full" -> envVars.put("WRAPPER_EMULATE_BCN", "2");
+            case "auto" -> {
+                if (bcnEmulationType.equals("compute")) {
+                    envVars.put("ENABLE_BCN_COMPUTE", "1");
+                    envVars.put("BCN_COMPUTE_AUTO", "1");
+                }
+                envVars.put("WRAPPER_EMULATE_BCN", "3");
+            }
+            case "full" -> {
+                if (bcnEmulationType.equals("compute")) {
+                    envVars.put("ENABLE_BCN_COMPUTE", "1");
+                    envVars.put("BCN_COMPUTE_AUTO", "0");
+                }
+                envVars.put("WRAPPER_EMULATE_BCN", "2");
+            }
             case "none" -> envVars.put("WRAPPER_EMULATE_BCN", "0");
             default -> envVars.put("WRAPPER_EMULATE_BCN", "1");
         }
