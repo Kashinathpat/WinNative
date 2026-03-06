@@ -114,7 +114,7 @@ public class SettingsFragment extends Fragment {
         // Apply dynamic styles to all labels
         applyDynamicStylesRecursively(view);
         if (getActivity() != null && ((AppCompatActivity)getActivity()).getSupportActionBar() != null) {
-            ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(R.string.presets);
+            ((AppCompatActivity)getActivity()).getSupportActionBar().setTitle(R.string.settings);
         }
     }
 
@@ -308,6 +308,22 @@ public class SettingsFragment extends Fragment {
 
         view.findViewById(R.id.BTReInstallImagefs).setOnClickListener(v -> {
             ContentDialog.confirm(context, R.string.do_you_want_to_reinstall_imagefs, () -> ImageFsInstaller.installFromAssets((MainActivity) getActivity()));
+        });
+
+        view.findViewById(R.id.BTContentManager).setOnClickListener(v -> {
+            FragmentManager fragmentManager = getParentFragmentManager();
+            fragmentManager.beginTransaction()
+                    .replace(R.id.FLFragmentContainer, new ContentsFragment())
+                    .addToBackStack(null)
+                    .commit();
+        });
+
+        view.findViewById(R.id.BTDriverManager).setOnClickListener(v -> {
+            FragmentManager fragmentManager = getParentFragmentManager();
+            fragmentManager.beginTransaction()
+                    .replace(R.id.FLFragmentContainer, new AdrenotoolsFragment())
+                    .addToBackStack(null)
+                    .commit();
         });
 
         // Steam Integration
