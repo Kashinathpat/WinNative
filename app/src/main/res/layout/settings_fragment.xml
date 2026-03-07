@@ -569,7 +569,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/experimental"
+                android:text="@string/components"
                 android:textColor="#1A9FFF"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -615,6 +615,25 @@
                     android:layout_height="wrap_content"
                     android:textColor="@color/white"
                     android:text="@string/share_android_clipboard" />
+
+                <View style="@style/HorizontalLine" android:layout_marginVertical="8dp"/>
+
+                <Button
+                    android:id="@+id/BTContentManager"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:backgroundTint="#37474F"
+                    android:textColor="@color/white"
+                    android:text="Content Manager" />
+
+                <Button
+                    android:id="@+id/BTDriverManager"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:backgroundTint="#37474F"
+                    android:textColor="@color/white"
+                    android:text="Driver Manager" />
 
                 <View style="@style/HorizontalLine" android:layout_marginVertical="8dp"/>
 

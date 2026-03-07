@@ -18,6 +18,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.winlator.cmod.contentdialog.ContentDialog;
 import com.winlator.cmod.contents.AdrenotoolsManager;
+import com.winlator.cmod.contents.Downloader;
+import com.winlator.cmod.core.AppUtils;
+import com.winlator.cmod.core.DownloadProgressDialog;
+
+import java.io.File;
 import java.util.ArrayList;
 
 public class AdrenotoolsFragment extends Fragment {
@@ -47,6 +52,43 @@ public class AdrenotoolsFragment extends Fragment {
                 getActivity().startActivityFromFragment(this, intent, MainActivity.OPEN_FILE_REQUEST_CODE);               
             });
         });
+
+        View btDownloadDriver = layout.findViewById(R.id.BTDownloadDriver);
+        TextView etDownloadURL = layout.findViewById(R.id.ETDriverDownloadURL);
+        btDownloadDriver.setOnClickListener(v -> {
+            String url = etDownloadURL.getText().toString().trim();
+            if (url.isEmpty()) {
+                AppUtils.showToast(getContext(), "Please enter a URL.");
+                return;
+            }
+
+            DownloadProgressDialog downloadDialog = new DownloadProgressDialog(getActivity());
+            downloadDialog.show("Downloading Driver...");
+
+            new Thread(() -> {
+                File output = new File(getContext().getCacheDir(), "driver_temp_" + System.currentTimeMillis() + ".zip");
+                boolean success = Downloader.downloadFile(url, output, percent -> {
+                    getActivity().runOnUiThread(() -> downloadDialog.setProgress(percent));
+                });
+
+                getActivity().runOnUiThread(() -> {
+                    downloadDialog.close();
+                    if (success) {
+                        String driver = adrenotoolsManager.installDriver(Uri.fromFile(output));
+                        if (!driver.isEmpty()) {
+                            ((DriversAdapter)recyclerView.getAdapter()).addItem(driver);
+                            AppUtils.showToast(getContext(), "Driver installed successfully.");
+                        } else {
+                            AppUtils.showToast(getContext(), "Failed to install downloaded driver.");
+                        }
+                        output.delete();
+                    } else {
+                        AppUtils.showToast(getContext(), "Download failed.");
+                    }
+                });
+            }).start();
+        });
+
         return layout;
     }
     
