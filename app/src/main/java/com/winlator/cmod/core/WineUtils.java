@@ -75,7 +75,8 @@ public abstract class WineUtils {
         File userRegFile = new File(container.getRootDir(), ".wine/user.reg");
 
         try (WineRegistryEditor registryEditor = new WineRegistryEditor(userRegFile)) {
-            JSONObject wincomponentsJSONObject = new JSONObject(FileUtils.readString(context, "wincomponents/wincomponents.json"));
+            String wincomponentsStr = FileUtils.readString(context, "wincomponents/wincomponents.json");
+            JSONObject wincomponentsJSONObject = new JSONObject(wincomponentsStr != null ? wincomponentsStr : "{}");
             JSONArray dlnames = wincomponentsJSONObject.getJSONArray(identifier);
             for (int i = 0; i < dlnames.length(); i++) {
                 String dlname = dlnames.getString(i);

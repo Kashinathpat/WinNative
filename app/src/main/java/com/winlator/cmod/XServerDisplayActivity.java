@@ -1959,7 +1959,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         File systemRegFile = new File(rootDir, ImageFs.WINEPREFIX+"/system.reg");
 
         try {
-            JSONObject wincomponentsJSONObject = new JSONObject(FileUtils.readString(this, "wincomponents/wincomponents.json"));
+            String wincomponentsStr = FileUtils.readString(this, "wincomponents/wincomponents.json");
+            JSONObject wincomponentsJSONObject = new JSONObject(wincomponentsStr != null ? wincomponentsStr : "{}");
             ArrayList<String> dlls = new ArrayList<>();
             String wincomponents = shortcut != null ? shortcut.getExtra("wincomponents", container.getWinComponents()) : container.getWinComponents();
 

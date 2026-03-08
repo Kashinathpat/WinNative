@@ -677,7 +677,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("fexcorePreset", fexcorePreset);
                     data.put("desktopTheme", desktopTheme);
                     String selectedWineStr = sWineVersion.getSelectedItem() != null ? sWineVersion.getSelectedItem().toString() : WineInfo.MAIN_WINE_VERSION.identifier();
-                    String finalWineVersion = WineInfo.fromIdentifier(context, contentsManager, selectedWineStr).identifier();
+                    String finalWineVersion = selectedWineStr;
                     data.put("wineVersion", finalWineVersion);
                     data.put("midiSoundFont", midiSoundFont);
                     data.put("lc_all", lc_all);
@@ -765,7 +765,7 @@ public class ContainerDetailFragment extends Fragment {
                     data.put("fexcorePreset", fexcorePreset);
                     data.put("desktopTheme", desktopTheme);
                     String selectedWineStr = sWineVersion.getSelectedItem() != null ? sWineVersion.getSelectedItem().toString() : WineInfo.MAIN_WINE_VERSION.identifier();
-                    data.put("wineVersion", WineInfo.fromIdentifier(context, contentsManager, selectedWineStr).identifier());
+                    data.put("wineVersion", selectedWineStr);
                     data.put("midiSoundFont", midiSoundFont);
                     data.put("lc_all", lc_all);
                     data.put("primaryController", primaryController);

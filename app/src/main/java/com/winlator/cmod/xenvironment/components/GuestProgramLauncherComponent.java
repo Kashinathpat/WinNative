@@ -321,14 +321,14 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         
         // Check for specific shared memory libraries
         if ((new File(imageFs.getLibDir(), "libandroid-sysvshm.so")).exists()){
-            ld_preload = imageFs.getLibDir() + "/libandroid-sysvshm.so";
+            ld_preload = "libandroid-sysvshm.so";
         }
 
         if (wineInfo.isArm64EC()) {
             File hookImpl = new File(context.getApplicationInfo().nativeLibraryDir, "libhook_impl.so");
             File fileRedirect = new File(context.getApplicationInfo().nativeLibraryDir, "libfile_redirect_hook.so");
             if (hookImpl.exists() && fileRedirect.exists()) {
-                ld_preload += (ld_preload.isEmpty() ? "" : ":") + hookImpl.getAbsolutePath() + ":" + fileRedirect.getAbsolutePath();
+                ld_preload += (ld_preload.isEmpty() ? "" : ":") + "libhook_impl.so:libfile_redirect_hook.so";
             }
         }
 

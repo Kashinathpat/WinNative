@@ -138,7 +138,8 @@ public class InputControlsManager {
         File newFile = ControlsProfile.getProfileFile(context, newId);
 
         try {
-            JSONObject data = new JSONObject(FileUtils.readString(ControlsProfile.getProfileFile(context, source.id)));
+            String jsonStr = FileUtils.readString(ControlsProfile.getProfileFile(context, source.id));
+            JSONObject data = new JSONObject(jsonStr != null ? jsonStr : "{}");
             data.put("id", newId);
             data.put("name", newName);
             if (data.has("template")) data.remove("template");

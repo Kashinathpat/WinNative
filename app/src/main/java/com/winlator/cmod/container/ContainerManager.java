@@ -6,6 +6,7 @@ import android.os.Looper;
 import android.util.Log;
 
 import com.winlator.cmod.R;
+import com.winlator.cmod.contents.ContentProfile;
 import com.winlator.cmod.contents.ContentsManager;
 import com.winlator.cmod.core.Callback;
 import com.winlator.cmod.core.FileUtils;
@@ -292,9 +293,19 @@ public class ContainerManager {
         Log.d("ContainerManager", "extractContainerPatternFile: asset extraction result=" + result);
 
         if (!result) {
-            File containerPatternFile = new File(wineInfo.path + "/prefixPack.txz");
+            ContentProfile profile = contentsManager.getProfileByEntryName(wineVersion);
+            File containerPatternFile;
+            if (profile != null && profile.winePrefixPack != null && !profile.winePrefixPack.isEmpty()) {
+                containerPatternFile = new File(wineInfo.path, profile.winePrefixPack);
+            } else {
+                containerPatternFile = new File(wineInfo.path, "prefixPack.txz");
+            }
             Log.d("ContainerManager", "extractContainerPatternFile: trying file: " + containerPatternFile.getAbsolutePath() + " exists=" + containerPatternFile.exists());
-            result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, containerPatternFile, containerDir);
+            if (containerPatternFile.getName().endsWith(".tzst")) {
+                result = TarCompressorUtils.extract(TarCompressorUtils.Type.ZSTD, containerPatternFile, containerDir);
+            } else {
+                result = TarCompressorUtils.extract(TarCompressorUtils.Type.XZ, containerPatternFile, containerDir);
+            }
             Log.d("ContainerManager", "extractContainerPatternFile: file extraction result=" + result);
         }
 

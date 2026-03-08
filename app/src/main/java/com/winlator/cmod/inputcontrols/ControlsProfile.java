@@ -56,7 +56,8 @@ public class ControlsProfile implements Comparable<ControlsProfile> {
             File file = getProfileFile(context, id);
             if (file.isFile()) {
                 try {
-                    JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+                    String jsonStr = FileUtils.readString(file);
+                    JSONObject profileJSONObject = new JSONObject(jsonStr != null ? jsonStr : "{}");
                     JSONArray elementsJSONArray = profileJSONObject.getJSONArray("elements");
                     for (int i = 0; i < elementsJSONArray.length(); i++) {
                         JSONObject elementJSONObject = elementsJSONArray.getJSONObject(i);

@@ -242,7 +242,8 @@ public class ContentsManager {
     public ContentProfile readProfile(File file) {
         try {
             ContentProfile profile = new ContentProfile();
-            JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
+            String profileStr = FileUtils.readString(file);
+            JSONObject profileJSONObject = new JSONObject(profileStr != null ? profileStr : "{}");
             String typeName = profileJSONObject.getString(ContentProfile.MARK_TYPE);
             String verName = profileJSONObject.getString(ContentProfile.MARK_VERSION_NAME);
             int verCode = profileJSONObject.getInt(ContentProfile.MARK_VERSION_CODE);

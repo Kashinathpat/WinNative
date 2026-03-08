@@ -46,7 +46,8 @@ public class AdrenotoolsManager {
         File driverPath = new File(adrenotoolsContentDir, adrenoToolsDriverId);
         try {
             File metaProfile = new File(driverPath, "meta.json");
-            JSONObject jsonObject = new JSONObject(FileUtils.readString(metaProfile));
+            String jsonStr = FileUtils.readString(metaProfile);
+            JSONObject jsonObject = new JSONObject(jsonStr != null ? jsonStr : "{}");
             libraryName = jsonObject.getString("libraryName");
         }
         catch (JSONException e) {
@@ -59,7 +60,8 @@ public class AdrenotoolsManager {
         File driverPath = new File(adrenotoolsContentDir, adrenoToolsDriverId);
         try {
             File metaProfile = new File(driverPath, "meta.json");
-            JSONObject jsonObject = new JSONObject(FileUtils.readString(metaProfile));
+            String jsonStr = FileUtils.readString(metaProfile);
+            JSONObject jsonObject = new JSONObject(jsonStr != null ? jsonStr : "{}");
             driverName = jsonObject.getString("name");
         }
         catch (JSONException e) {
@@ -72,7 +74,8 @@ public class AdrenotoolsManager {
         File driverPath = new File(adrenotoolsContentDir, adrenoToolsDriverId);
         try {
             File metaProfile = new File(driverPath, "meta.json");
-            JSONObject jsonObject = new JSONObject(FileUtils.readString(metaProfile));
+            String jsonStr = FileUtils.readString(metaProfile);
+            JSONObject jsonObject = new JSONObject(jsonStr != null ? jsonStr : "{}");
             driverVersion = jsonObject.getString("driverVersion");
         }
         catch (JSONException e) {
