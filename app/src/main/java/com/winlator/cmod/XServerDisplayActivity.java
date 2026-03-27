@@ -1527,18 +1527,91 @@ public class XServerDisplayActivity extends AppCompatActivity {
             return;
         }
 
+        // Wrap onComplete to chain auto backup to Google Drive after store sync finishes
+        Runnable afterStoreSync = () -> runAutoBackupIfEnabled(onComplete);
+
         String gameSource = shortcut.getExtra("game_source");
         if ("STEAM".equals(gameSource)) {
-            syncSteamCloudOnExit(onComplete);
+            syncSteamCloudOnExit(afterStoreSync);
+            return;
+        }
+
+        if ("EPIC".equals(gameSource)) {
+            syncEpicCloudOnExit(afterStoreSync);
             return;
         }
 
         if ("GOG".equals(gameSource)) {
-            syncGogCloudOnExit(onComplete);
+            syncGogCloudOnExit(afterStoreSync);
             return;
         }
 
         onComplete.run();
+    }
+
+    /**
+     * If Cloud Sync Auto Backup is enabled, zips the local save and uploads to Google Drive.
+     * Reuses GameSaveBackupManager but skips downloading from the store provider.
+     */
+    private void runAutoBackupIfEnabled(Runnable onComplete) {
+        if (shortcut == null) {
+            onComplete.run();
+            return;
+        }
+
+        if (!com.winlator.cmod.google.GameSaveBackupManager.INSTANCE.isAutoBackupEnabled(this)) {
+            onComplete.run();
+            return;
+        }
+
+        String gameSource = shortcut.getExtra("game_source");
+        String gameId;
+        com.winlator.cmod.google.GameSaveBackupManager.GameSource source;
+
+        if ("STEAM".equals(gameSource)) {
+            gameId = shortcut.getExtra("app_id");
+            source = com.winlator.cmod.google.GameSaveBackupManager.GameSource.STEAM;
+        } else if ("EPIC".equals(gameSource)) {
+            gameId = shortcut.getExtra("app_id");
+            source = com.winlator.cmod.google.GameSaveBackupManager.GameSource.EPIC;
+        } else if ("GOG".equals(gameSource)) {
+            gameId = shortcut.getExtra("gog_id");
+            source = com.winlator.cmod.google.GameSaveBackupManager.GameSource.GOG;
+        } else {
+            onComplete.run();
+            return;
+        }
+
+        if (gameId == null || gameId.isEmpty()) {
+            onComplete.run();
+            return;
+        }
+
+        String gameName = shortcutName != null && !shortcutName.isEmpty() ? shortcutName : (shortcut.name != null ? shortcut.name : "Unknown");
+
+        Log.d("XServerDisplayActivity", "Starting auto backup to Google Drive for " + gameSource + "/" + gameId);
+        preloaderDialog.showOnUiThread("Backing up save to Google Drive...");
+
+        new Thread(() -> {
+            try {
+                com.winlator.cmod.google.GameSaveBackupManager.BackupResult result =
+                    (com.winlator.cmod.google.GameSaveBackupManager.BackupResult) kotlinx.coroutines.BuildersKt.runBlocking(
+                        kotlinx.coroutines.Dispatchers.getIO(),
+                        (scope, continuation) -> com.winlator.cmod.google.GameSaveBackupManager.INSTANCE.autoBackupToGoogle(
+                            this,
+                            source,
+                            gameId,
+                            gameName,
+                            continuation
+                        )
+                    );
+                Log.d("XServerDisplayActivity", "Auto backup result: " + result.getMessage());
+            } catch (Exception e) {
+                Log.w("XServerDisplayActivity", "Auto backup to Google Drive failed", e);
+            } finally {
+                runOnUiThread(onComplete);
+            }
+        }).start();
     }
 
     /**
@@ -1577,6 +1650,42 @@ public class XServerDisplayActivity extends AppCompatActivity {
             com.winlator.cmod.steam.service.SteamService.syncCloudOnExit(this, appId, callback);
         } catch (Exception e) {
             Log.w("XServerDisplayActivity", "Failed to initiate Steam cloud sync", e);
+            onComplete.run();
+        }
+    }
+
+    private void syncEpicCloudOnExit(Runnable onComplete) {
+        String appIdStr = shortcut.getExtra("app_id");
+        if (appIdStr == null || appIdStr.isEmpty()) {
+            onComplete.run();
+            return;
+        }
+
+        try {
+            int appId = Integer.parseInt(appIdStr);
+            Log.d("XServerDisplayActivity", "Syncing Epic cloud saves for appId=" + appId);
+            preloaderDialog.showOnUiThread("Cloud Sync Uploading...");
+
+            new Thread(() -> {
+                try {
+                    Boolean syncSuccess = (Boolean) kotlinx.coroutines.BuildersKt.runBlocking(
+                            kotlinx.coroutines.Dispatchers.getIO(),
+                            (scope, continuation) -> com.winlator.cmod.epic.service.EpicCloudSavesManager.INSTANCE.syncCloudSaves(
+                                    this,
+                                    appId,
+                                    "upload",
+                                    continuation
+                            )
+                    );
+                    Log.d("XServerDisplayActivity", "Epic cloud sync complete for appId=" + appId + ", success=" + syncSuccess);
+                } catch (Exception e) {
+                    Log.w("XServerDisplayActivity", "Failed to initiate Epic cloud sync", e);
+                } finally {
+                    runOnUiThread(onComplete);
+                }
+            }).start();
+        } catch (Exception e) {
+            Log.w("XServerDisplayActivity", "Failed to parse Epic app_id for cloud sync", e);
             onComplete.run();
         }
     }
