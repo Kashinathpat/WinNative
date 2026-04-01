@@ -63,27 +63,9 @@ jobs:
       with:
         validate-wrappers: true
         cache-cleanup: 'on-success'
-
-    - name: Seed caches (full debug build)
-      if: github.event_name == 'push'
-      timeout-minutes: 25
-      env:
-        GRADLE_OPTS: -Xmx4g -XX:+UseG1GC
-      run: |
-        export KEYSTORE_FILE="${{ github.workspace }}/release.jks"
-        export KEYSTORE_PASSWORD="dummypass"
-        export KEY_ALIAS="winnative"
-        export KEY_PASSWORD="dummypass"
-        keytool -genkey -v \
-          -keystore "$KEYSTORE_FILE" \
-          -alias winnative \
-          -keyalg RSA -keysize 2048 -validity 1 \
-          -storepass dummypass -keypass dummypass \
-          -dname "CN=CI, OU=CI, O=CI, L=CI, ST=CI, C=US"
-        ./gradlew :app:assembleStandardDebug --build-cache --parallel -x lint
-
+        
     - name: Decode keystore and build
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' || github.event_name == 'push'
       timeout-minutes: 15
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -106,10 +88,10 @@ jobs:
             -storepass dummypass -keypass dummypass \
             -dname "CN=CI, OU=CI, O=CI, L=CI, ST=CI, C=US"
         fi
-        ./gradlew :app:assembleStandardDebug --build-cache --parallel -x lint
+        ./gradlew :app:assembleStandardDebug :app:assembleLudashiDebug --build-cache --parallel -x lint
 
     - name: Set short SHA
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' || github.event_name == 'push'
       id: sha
       run: echo "short=$(echo $GITHUB_SHA | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
@@ -117,7 +99,7 @@ jobs:
       if: github.event_name == 'pull_request' || github.event_name == 'push'
       uses: actions/upload-artifact@v4
       with:
-        name: WinNative-debug-PR${{ github.event.pull_request.number }}-${{ steps.sha.outputs.short }}
+        name: WinNative-debug-${{ github.event_name == 'pull_request' && format('PR{0}', github.event.pull_request.number) || 'main' }}-${{ steps.sha.outputs.short }}
         path: |
           app/build/outputs/apk/standard/debug/standard.apk
           app/build/outputs/apk/ludashi/debug/ludashi.apk
