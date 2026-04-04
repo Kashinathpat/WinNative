@@ -4,11 +4,14 @@ import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
@@ -16,6 +19,7 @@ import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.graphics.Color;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -59,6 +63,7 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
         container.findViewById(R.id.BTAddElement).setOnClickListener(this);
         container.findViewById(R.id.BTRemoveElement).setOnClickListener(this);
         container.findViewById(R.id.BTElementSettings).setOnClickListener(this);
+        container.findViewById(R.id.BTColorPicker).setOnClickListener(this);
     }
 
     @Override
@@ -81,7 +86,81 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
                 }
                 else AppUtils.showToast(this, R.string.input_controls_editor_no_element_selected);
                 break;
+            case R.id.BTColorPicker:
+                ControlElement selectedElementForColor = inputControlsView.getSelectedElement();
+                if (selectedElementForColor != null) {
+                    showColorPicker(v);
+                }
+                else AppUtils.showToast(this, R.string.input_controls_editor_no_element_selected);
+                break;
         }
+    }
+
+    private void showColorPicker(View anchorView) {
+        final ControlElement element = inputControlsView.getSelectedElement();
+        View view = LayoutInflater.from(this).inflate(R.layout.color_picker_popup, null);
+        GridView gvColors = view.findViewById(R.id.GVColors);
+        final EditText etHexColor = view.findViewById(R.id.ETHexColor);
+
+        final int[] colors = {
+            0xFFFFFFFF, 0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFFFFFF00,
+            0xFF00FFFF, 0xFFFF00FF, 0xFFFFA500, 0xFF800080, 0xFF008000,
+            0xFF008080, 0xFF000080, 0xFF800000, 0xFF808000, 0xFF808080,
+            0xFFC4460C, 0xFF2B2928, 0xFF3B0878, 0xFF000000, 0xFF964B00
+        };
+
+        gvColors.setAdapter(new BaseAdapter() {
+            @Override
+            public int getCount() { return colors.length; }
+            @Override
+            public Object getItem(int position) { return colors[position]; }
+            @Override
+            public long getItemId(int position) { return position; }
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View colorView = new View(parent.getContext());
+                int size = (int)UnitUtils.dpToPx(28);
+                colorView.setLayoutParams(new GridView.LayoutParams(size, size));
+                colorView.setBackgroundColor(colors[position]);
+                colorView.setOnClickListener(v -> {
+                    etHexColor.setText(String.format("#%06X", (0xFFFFFF & colors[position])));
+                    element.setCustomColor(colors[position]);
+                    inputControlsView.invalidate();
+                    profile.save();
+                });
+                return colorView;
+            }
+        });
+
+        if (element.getCustomColor() != -1) {
+            etHexColor.setText(String.format("#%06X", (0xFFFFFF & element.getCustomColor())));
+        }
+
+        final PopupWindow popupWindow = AppUtils.showPopupWindow(anchorView, view, 300, 0);
+        popupWindow.setFocusable(true);
+        popupWindow.update();
+
+        view.findViewById(R.id.BTReset).setOnClickListener(v -> {
+            element.setCustomColor(-1);
+            inputControlsView.invalidate();
+            profile.save();
+            popupWindow.dismiss();
+        });
+
+        view.findViewById(R.id.BTConfirm).setOnClickListener(v -> {
+            String hex = etHexColor.getText().toString().trim();
+            if (!hex.isEmpty()) {
+                try {
+                    int color = Color.parseColor(hex.startsWith("#") ? hex : "#" + hex);
+                    element.setCustomColor(color);
+                    inputControlsView.invalidate();
+                    profile.save();
+                } catch (Exception e) {
+                    AppUtils.showToast(this, "Invalid Color");
+                }
+            }
+            popupWindow.dismiss();
+        });
     }
 
     private void showControlElementSettings(View anchorView) {

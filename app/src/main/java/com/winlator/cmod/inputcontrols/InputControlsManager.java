@@ -71,10 +71,10 @@ public class InputControlsManager {
         int newVersion = AppUtils.getVersionCode(context);
         int oldVersion = preferences.getInt("inputcontrols_app_version", 0);
         int oldSyncRevision = preferences.getInt("inputcontrols_asset_sync_revision", 0);
-        if (oldVersion == newVersion && oldSyncRevision >= 1) return;
+        if (oldVersion == newVersion && oldSyncRevision >= 2) return;
         preferences.edit()
                 .putInt("inputcontrols_app_version", newVersion)
-                .putInt("inputcontrols_asset_sync_revision", 1)
+                .putInt("inputcontrols_asset_sync_revision", 2)
                 .apply();
 
         File[] files = profilesDir.listFiles();

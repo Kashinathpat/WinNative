@@ -83,6 +83,7 @@ public class ControlElement {
     private Range range;
     private byte orientation;
     private PointF currentPosition;
+    private int customColor = -1;
     private RangeScroller scroller;
     private CubicBezierInterpolator interpolator;
     private Object touchTime;
@@ -175,6 +176,15 @@ public class ControlElement {
 
     public void setToggleSwitch(boolean toggleSwitch) {
         this.toggleSwitch = toggleSwitch;
+    }
+
+    public int getCustomColor() {
+        return customColor;
+    }
+
+    public void setCustomColor(int customColor) {
+        this.customColor = customColor;
+        this.boundingBoxNeedsUpdate = true;
     }
 
     public Binding getBindingAt(int index) {
@@ -357,10 +367,10 @@ public class ControlElement {
     public void draw(Canvas canvas) {
         int snappingSize = inputControlsView.getSnappingSize();
         Paint paint = inputControlsView.getPaint();
-        int primaryColor = inputControlsView.getPrimaryColor();
+        int primaryColor = customColor != -1 ? customColor : inputControlsView.getPrimaryColor();
         int fillColor = ColorUtils.setAlphaComponent(primaryColor, 70);
 
-        paint.setColor(selected ? inputControlsView.getSecondaryColor() : primaryColor);
+        paint.setColor((selected && customColor == -1) ? inputControlsView.getSecondaryColor() : primaryColor);
         paint.setStyle(Paint.Style.STROKE);
         float strokeWidth = snappingSize * 0.25f;
         paint.setStrokeWidth(strokeWidth);
@@ -395,7 +405,7 @@ public class ControlElement {
                 }
 
                 paint.setStyle(Paint.Style.STROKE);
-                paint.setColor(selected ? inputControlsView.getSecondaryColor() : primaryColor);
+                paint.setColor((selected && customColor == -1) ? inputControlsView.getSecondaryColor() : primaryColor);
                 paint.setStrokeWidth(strokeWidth);
 
                 switch (shape) {
@@ -605,6 +615,7 @@ public class ControlElement {
             JSONObject elementJSONObject = new JSONObject();
             elementJSONObject.put("type", type.name());
             elementJSONObject.put("shape", shape.name());
+            elementJSONObject.put("customColor", customColor);
 
             JSONArray bindingsJSONArray = new JSONArray();
             for (Binding binding : bindings) bindingsJSONArray.put(binding.name());
