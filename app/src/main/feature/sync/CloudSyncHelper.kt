@@ -144,6 +144,16 @@ object CloudSyncHelper {
     }
 
     /**
+     * Per-shortcut "Disable Cloud Sync" override. When true, every automatic
+     * cloud interaction (launch download, conflict prompt, exit provider sync,
+     * exit Drive auto-backup) is skipped. Manual user-initiated actions
+     * (Back up, Restore, Sync from Cloud) are NOT blocked by this flag.
+     */
+    @JvmStatic
+    fun isOfflineMode(shortcut: Shortcut?): Boolean =
+        shortcut != null && shortcut.getExtra("offline_mode", "0") == "1"
+
+    /**
      * Returns true when a previous cloud-save sync has been recorded for this
      * shortcut, indicating that local save data already exists on-device.
      */

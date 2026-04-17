@@ -1174,7 +1174,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
                 UpdateChecker.INSTANCE.cancelPostGameCheck();
 
                 if (shortcut != null) {
-                    if (isCloudSyncEnabledForShortcut()) {
+                    if (isCloudSyncEnabledForShortcut() && !CloudSyncHelper.isOfflineMode(shortcut)) {
                         CloudSyncHelper.forceDownloadOnContainerSwap(this, shortcut);
 
                         // Cloud save sync on every store-game launch
@@ -1872,7 +1872,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
             return;
         }
 
-        if (!isCloudSyncEnabledForShortcut()) {
+        if (!isCloudSyncEnabledForShortcut() || com.winlator.cmod.feature.sync.CloudSyncHelper.isOfflineMode(shortcut)) {
             onComplete.run();
             return;
         }
@@ -1909,7 +1909,7 @@ public class XServerDisplayActivity extends AppCompatActivity {
             return;
         }
 
-        if (!isCloudSyncEnabledForShortcut()) {
+        if (!isCloudSyncEnabledForShortcut() || com.winlator.cmod.feature.sync.CloudSyncHelper.isOfflineMode(shortcut)) {
             onComplete.run();
             return;
         }

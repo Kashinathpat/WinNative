@@ -110,7 +110,12 @@ object GameSaveBackupManager {
         val timestampMs: Long,
         val origin: BackupOrigin,
         val sizeBytes: Long,
+        /** Optional user label ("Boss fight", "Before ending", …). Null when unnamed. */
+        val label: String? = null,
     )
+
+    /** Max length of a user-provided history-entry label, after sanitization. */
+    const val MAX_HISTORY_LABEL_LENGTH = 48
 
     private data class SaveBackupSource(
         val zipRoot: String,
@@ -126,151 +131,40 @@ object GameSaveBackupManager {
     )
 
     /**
-     * Backup a game's cloud save to Google Drive.
+     * Back up the current local save state to Save History on Google Drive.
+     *
+     * Writes `WinNative/Games/History/<gameKey>/<timestamp>_manual.zip` and prunes
+     * old entries (>30 days or beyond MAX_HISTORY_ENTRIES). Does NOT pull from
+     * the store provider first — what's on disk is what gets saved. The legacy
+     * primary-slot zip (`<platform>_<id>_<name>.zip`) is no longer written; it's
+     * only read as a fallback when history is empty.
      */
     suspend fun backupToGoogle(
         activity: Activity,
         gameSource: GameSource,
         gameId: String,
         gameName: String,
-    ): BackupResult =
-        withContext(Dispatchers.IO) {
-            try {
-                val context = activity.applicationContext
-
-                // Auth check
-                if (!isGoogleSyncEnabled(context)) {
-                    return@withContext BackupResult(false, "Google sync is not enabled. Enable it in Settings > Google first.")
-                }
-                if (!awaitAuthenticatedSession(activity)) {
-                    return@withContext BackupResult(false, "Not signed in to Google Play Games. Please sign in first.")
-                }
-
-                val accessToken = getDriveAccessToken(activity)
-                if (accessToken == null) {
-                    return@withContext BackupResult(false, "Google Drive authorization required. Please try again after granting access.")
-                }
-
-                performBackup(activity, accessToken, gameSource, gameId, gameName)
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Backup failed for $gameSource/$gameId")
-                BackupResult(false, "Backup failed: ${e.message}")
-            }
-        }
-
-    private suspend fun performBackup(
-        activity: Activity,
-        accessToken: String,
-        gameSource: GameSource,
-        gameId: String,
-        gameName: String,
-    ): BackupResult {
-        val context = activity.applicationContext
-
-        // Step 1: Ensure cloud saves are synced down to local
-        val syncOk = syncDownFromProvider(context, gameSource, gameId)
-        if (!syncOk) {
-            return BackupResult(false, "Failed to download save from ${gameSource.name}. Saves may not exist or service is unavailable.")
-        }
-
-        // Step 2: Locate and zip local save files
-        val saveSources = getLocalSaveSources(context, gameSource, gameId, forRestore = false)
-        if (saveSources.isEmpty()) {
-            return BackupResult(false, "No local save files found for this game.")
-        }
-
-        val zipBytes = zipSaveSources(saveSources)
-        if (zipBytes.isEmpty()) {
-            return BackupResult(false, "Save files are empty.")
-        }
-
-        // Step 3: Upload to Google Drive
-        val fileName = buildDriveFileName(gameSource, gameId, gameName)
-        val folderId = getOrCreateGameBackupsFolder(accessToken)
-        if (folderId == null) {
-            return BackupResult(false, "Failed to create WinNative/Games folder on Google Drive.")
-        }
-
-        val existingFileId = findDriveFile(accessToken, folderId, fileName)
-        val uploaded =
-            if (existingFileId != null) {
-                updateDriveFile(accessToken, existingFileId, zipBytes)
-            } else {
-                createDriveFile(accessToken, folderId, fileName, zipBytes)
-            }
-
-        return if (uploaded) {
-            Timber.tag(TAG).i("Drive upload complete: $fileName (${zipBytes.size} bytes)")
-            BackupResult(true, "Cloud save backed up to Google Drive.")
-        } else {
-            BackupResult(false, "Failed to upload to Google Drive.")
-        }
-    }
+    ): BackupResult = backupDiscardedSave(activity, gameSource, gameId, gameName, BackupOrigin.MANUAL)
 
     /**
-     * Auto-backup: zips the local save directory and uploads to Google Drive.
-     * Unlike [backupToGoogle], this does NOT download from the store provider first —
-     * it assumes the local save was just pushed to the store and mirrors it directly.
+     * Exit auto-backup: zips local saves and writes them to Save History with
+     * origin=AUTO. Gated by the global [isAutoBackupEnabled] setting.
      */
     suspend fun autoBackupToGoogle(
         activity: Activity,
         gameSource: GameSource,
         gameId: String,
         gameName: String,
-    ): BackupResult =
-        withContext(Dispatchers.IO) {
-            try {
-                val context = activity.applicationContext
-
-                if (!isGoogleSyncEnabled(context)) {
-                    return@withContext BackupResult(false, "Google sync is not enabled.")
-                }
-                if (!isAutoBackupEnabled(context)) {
-                    return@withContext BackupResult(false, "Auto backup is not enabled.")
-                }
-                if (!awaitAuthenticatedSession(activity)) {
-                    return@withContext BackupResult(false, "Not signed in to Google Play Games.")
-                }
-
-                val accessToken =
-                    getDriveAccessToken(activity)
-                        ?: return@withContext BackupResult(false, "Google Drive authorization required.")
-
-                // Go straight to zipping local saves — no syncDownFromProvider
-                val saveSources = getLocalSaveSources(context, gameSource, gameId, forRestore = false)
-                if (saveSources.isEmpty()) {
-                    return@withContext BackupResult(false, "No local save files found for auto backup.")
-                }
-
-                val zipBytes = zipSaveSources(saveSources)
-                if (zipBytes.isEmpty()) {
-                    return@withContext BackupResult(false, "Save files are empty.")
-                }
-
-                val fileName = buildDriveFileName(gameSource, gameId, gameName)
-                val folderId =
-                    getOrCreateGameBackupsFolder(accessToken)
-                        ?: return@withContext BackupResult(false, "Failed to create WinNative/Games folder on Google Drive.")
-
-                val existingFileId = findDriveFile(accessToken, folderId, fileName)
-                val uploaded =
-                    if (existingFileId != null) {
-                        updateDriveFile(accessToken, existingFileId, zipBytes)
-                    } else {
-                        createDriveFile(accessToken, folderId, fileName, zipBytes)
-                    }
-
-                if (uploaded) {
-                    Timber.tag(TAG).i("Auto backup complete: $fileName (${zipBytes.size} bytes)")
-                    BackupResult(true, "Auto backup to Google Drive complete.")
-                } else {
-                    BackupResult(false, "Failed to upload auto backup to Google Drive.")
-                }
-            } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Auto backup failed for $gameSource/$gameId")
-                BackupResult(false, "Auto backup failed: ${e.message}")
-            }
+    ): BackupResult {
+        val context = activity.applicationContext
+        if (!isGoogleSyncEnabled(context)) {
+            return BackupResult(false, "Google sync is not enabled.")
         }
+        if (!isAutoBackupEnabled(context)) {
+            return BackupResult(false, "Auto backup is not enabled.")
+        }
+        return backupDiscardedSave(activity, gameSource, gameId, gameName, BackupOrigin.AUTO)
+    }
 
     fun isAutoBackupEnabled(context: Context): Boolean = prefs(context).getBoolean("cloud_sync_auto_backup", false)
 
@@ -286,84 +180,33 @@ object GameSaveBackupManager {
         }
 
     /**
-     * Restore a game's cloud save from Google Drive.
+     * Push the current on-disk save up to the store provider (Steam / Epic / GOG).
+     *
+     * Does **not** touch Google Drive and does **not** snapshot local first — this
+     * is a pure "sync up" used when the user wants the provider's cloud to match
+     * whatever they're currently playing with on disk. Kept named `restoreFromGoogle`
+     * for stable callers; the button label is "Restore cloud save".
      */
     suspend fun restoreFromGoogle(
         activity: Activity,
         gameSource: GameSource,
         gameId: String,
-        gameName: String,
+        @Suppress("UNUSED_PARAMETER") gameName: String,
     ): BackupResult =
         withContext(Dispatchers.IO) {
             try {
                 val context = activity.applicationContext
-
-                // Auth check
-                if (!isGoogleSyncEnabled(context)) {
-                    return@withContext BackupResult(false, "Google sync is not enabled. Enable it in Settings > Google first.")
+                val ok = syncUpToProvider(context, gameSource, gameId)
+                if (ok) {
+                    BackupResult(true, "Save pushed to ${gameSource.name}.")
+                } else {
+                    BackupResult(false, "Failed to push save to ${gameSource.name}.")
                 }
-                if (!awaitAuthenticatedSession(activity)) {
-                    return@withContext BackupResult(false, "Not signed in to Google Play Games. Please sign in first.")
-                }
-
-                val accessToken = getDriveAccessToken(activity)
-                if (accessToken == null) {
-                    return@withContext BackupResult(false, "Google Drive authorization required. Please try again after granting access.")
-                }
-
-                performRestore(activity, accessToken, gameSource, gameId, gameName)
             } catch (e: Exception) {
-                Timber.tag(TAG).e(e, "Restore failed for $gameSource/$gameId")
-                BackupResult(false, "Restore failed: ${e.message}")
+                Timber.tag(TAG).e(e, "restoreFromGoogle (push) failed for $gameSource/$gameId")
+                BackupResult(false, "Push failed: ${e.message}")
             }
         }
-
-    private suspend fun performRestore(
-        activity: Activity,
-        accessToken: String,
-        gameSource: GameSource,
-        gameId: String,
-        gameName: String,
-    ): BackupResult {
-        val context = activity.applicationContext
-        val fileName = buildDriveFileName(gameSource, gameId, gameName)
-
-        // Step 1: Find and download from Google Drive
-        val folderId = getOrCreateGameBackupsFolder(accessToken)
-        if (folderId == null) {
-            return BackupResult(false, "Failed to access WinNative/Games folder on Google Drive.")
-        }
-
-        val fileId = findDriveFile(accessToken, folderId, fileName)
-        if (fileId == null) {
-            return BackupResult(false, "No backup found on Google Drive for this game.")
-        }
-
-        val zipBytes = downloadDriveFile(accessToken, fileId)
-        if (zipBytes == null || zipBytes.isEmpty()) {
-            return BackupResult(false, "Downloaded backup is empty.")
-        }
-
-        Timber.tag(TAG).i("Drive download complete: $fileName (${zipBytes.size} bytes)")
-
-        // Step 2: Unzip to local save directory
-        val saveSources = getLocalSaveSources(context, gameSource, gameId, forRestore = true)
-        if (saveSources.isEmpty()) {
-            return BackupResult(false, "Cannot determine save directory for this game.")
-        }
-        unzipToSources(zipBytes, saveSources)
-
-        // Step 3: Upload back to provider
-        val uploadOk = syncUpToProvider(context, gameSource, gameId)
-        if (!uploadOk) {
-            return BackupResult(
-                false,
-                "Save files restored locally, but failed to upload to ${gameSource.name}. You can try syncing manually.",
-            )
-        }
-
-        return BackupResult(true, "Cloud save restored from Google Drive and uploaded to ${gameSource.name}.")
-    }
 
     /**
      * Called from Activity's onActivityResult when Drive consent is completed.
@@ -484,6 +327,7 @@ object GameSaveBackupManager {
                             timestampMs = parsedName.first,
                             origin = parsedName.second,
                             sizeBytes = file.sizeBytes,
+                            label = parsedName.third,
                         )
                     }
 
@@ -541,6 +385,79 @@ object GameSaveBackupManager {
             } catch (e: Exception) {
                 Timber.tag(TAG).e(e, "restoreFromHistoryEntry failed for $gameSource/$gameId")
                 BackupResult(false, "Restore failed: ${e.message}")
+            }
+        }
+
+    /**
+     * Set or clear the user label on a history entry by renaming the Drive file.
+     * Timestamp + origin prefix are preserved, so sort order and age-based pruning
+     * remain unchanged. Pass `newLabel = null` (or blank) to clear the label.
+     *
+     * Returns a [BackupResult]; on success, callers should re-list history to pick
+     * up the renamed entry.
+     */
+    suspend fun renameBackupHistoryEntry(
+        activity: Activity,
+        entry: BackupHistoryEntry,
+        newLabel: String?,
+    ): BackupResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val context = activity.applicationContext
+                if (!isGoogleSyncEnabled(context)) {
+                    return@withContext BackupResult(false, "Google sync is not enabled.")
+                }
+                if (!awaitAuthenticatedSession(activity)) {
+                    return@withContext BackupResult(false, "Not signed in to Google Play Games.")
+                }
+                val accessToken =
+                    getDriveAccessToken(activity)
+                        ?: return@withContext BackupResult(false, "Google Drive authorization required.")
+
+                val cleanLabel = sanitizeHistoryLabel(newLabel)
+                val newName = buildHistoryFileName(entry.timestampMs, entry.origin, cleanLabel)
+                if (newName == entry.fileName) {
+                    return@withContext BackupResult(true, "Nothing to rename.")
+                }
+                val ok = renameDriveFile(accessToken, entry.fileId, newName)
+                if (ok) {
+                    BackupResult(true, if (cleanLabel.isNullOrEmpty()) "Label cleared." else "Renamed.")
+                } else {
+                    BackupResult(false, "Rename failed.")
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "renameBackupHistoryEntry failed for %s", entry.fileName)
+                BackupResult(false, "Rename failed: ${e.message}")
+            }
+        }
+
+    /** Permanently delete a Save History entry from Google Drive. */
+    suspend fun deleteBackupHistoryEntry(
+        activity: Activity,
+        entry: BackupHistoryEntry,
+    ): BackupResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val context = activity.applicationContext
+                if (!isGoogleSyncEnabled(context)) {
+                    return@withContext BackupResult(false, "Google sync is not enabled.")
+                }
+                if (!awaitAuthenticatedSession(activity)) {
+                    return@withContext BackupResult(false, "Not signed in to Google Play Games.")
+                }
+                val accessToken =
+                    getDriveAccessToken(activity)
+                        ?: return@withContext BackupResult(false, "Google Drive authorization required.")
+
+                val ok = deleteDriveFile(accessToken, entry.fileId)
+                if (ok) {
+                    BackupResult(true, "Backup deleted.")
+                } else {
+                    BackupResult(false, "Delete failed.")
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "deleteBackupHistoryEntry failed for %s", entry.fileName)
+                BackupResult(false, "Delete failed: ${e.message}")
             }
         }
 
@@ -874,23 +791,46 @@ object GameSaveBackupManager {
         gameName: String,
     ): String = buildDriveFileName(source, gameId, gameName).removeSuffix(".zip")
 
-    /** Produce `yyyyMMdd'T'HHmmss_<origin>.zip` in UTC so filenames sort chronologically. */
+    /**
+     * Produce `yyyyMMdd'T'HHmmss_<origin>[_<label>].zip` in UTC so filenames sort
+     * chronologically. The optional label is the user-provided name for the entry.
+     */
     private fun buildHistoryFileName(
         timestampMs: Long,
         origin: BackupOrigin,
+        label: String? = null,
     ): String {
         val fmt = SimpleDateFormat("yyyyMMdd'T'HHmmss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        return "${fmt.format(Date(timestampMs))}_${origin.tag}.zip"
+        val base = "${fmt.format(Date(timestampMs))}_${origin.tag}"
+        val clean = sanitizeHistoryLabel(label)
+        return if (clean.isNullOrEmpty()) "$base.zip" else "${base}_$clean.zip"
     }
 
-    private val historyFileNameRegex = Regex("""^(\d{8}T\d{6})_([a-z]+)\.zip$""")
+    /**
+     * Strip out filename-hostile characters (path separators, control chars) and
+     * cap length. Returns null if the result would be empty.
+     */
+    fun sanitizeHistoryLabel(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        val cleaned =
+            raw
+                .replace(Regex("""[/\\:*?"<>|\r\n\t]"""), "")
+                .trim()
+                .take(MAX_HISTORY_LABEL_LENGTH)
+        return cleaned.ifEmpty { null }
+    }
 
-    private fun parseHistoryFileName(name: String): Pair<Long, BackupOrigin>? {
+    // Label captured non-greedily so it doesn't consume the `.zip` extension.
+    private val historyFileNameRegex = Regex("""^(\d{8}T\d{6})_([a-z]+)(?:_(.+?))?\.zip$""")
+
+    /** Returns (timestamp, origin, label) or null if the name does not match. */
+    private fun parseHistoryFileName(name: String): Triple<Long, BackupOrigin, String?>? {
         val m = historyFileNameRegex.matchEntire(name) ?: return null
         val fmt = SimpleDateFormat("yyyyMMdd'T'HHmmss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
         val ts = runCatching { fmt.parse(m.groupValues[1])?.time }.getOrNull() ?: return null
         val origin = BackupOrigin.fromTag(m.groupValues[2]) ?: return null
-        return ts to origin
+        val label = m.groupValues.getOrNull(3)?.takeIf { it.isNotEmpty() }
+        return Triple(ts, origin, label)
     }
 
     // ── Auth helpers ──
@@ -1191,6 +1131,26 @@ object GameSaveBackupManager {
         httpClient.newCall(request).execute().use { response ->
             if (response.isSuccessful || response.code == 404) return true
             Timber.tag(TAG).w("deleteDriveFile %s failed: %d %s", fileId, response.code, response.message)
+        }
+        return false
+    }
+
+    private fun renameDriveFile(
+        accessToken: String,
+        fileId: String,
+        newName: String,
+    ): Boolean {
+        val metadata = JSONObject().apply { put("name", newName) }
+        val request =
+            Request
+                .Builder()
+                .url("https://www.googleapis.com/drive/v3/files/$fileId?fields=id,name")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .patch(metadata.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+        httpClient.newCall(request).execute().use { response ->
+            if (response.isSuccessful) return true
+            Timber.tag(TAG).w("renameDriveFile %s failed: %d %s", fileId, response.code, response.message)
         }
         return false
     }
