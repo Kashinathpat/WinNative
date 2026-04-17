@@ -169,7 +169,26 @@ static char *get_library_name(JNIEnv *env, jobject context,
   return library_name;
 }
 
+static void preload_vendor_icd_deps() {
+  // Some OEM Vulkan ICDs (e.g. Samsung's /system_ext/lib64/libvendorutils.so)
+  // declare unresolved refs to OpenSSL symbols like BIO_flush. When the Android
+  // Vulkan loader pulls in the vendor ICD via dlopen, those symbols must already
+  // be visible in a preceding RTLD_GLOBAL library or the dlopen fails with
+  // "cannot locate symbol BIO_flush", and vkCreateInstance returns -9.
+  const char *candidates[] = {
+      "/apex/com.android.conscrypt/lib64/libcrypto.so",
+      "/system/lib64/libcrypto.so",
+      "libcrypto.so",
+      NULL,
+  };
+  for (int i = 0; candidates[i]; i++) {
+    if (dlopen(candidates[i], RTLD_GLOBAL | RTLD_NOW))
+      break;
+  }
+}
+
 static void init_original_vulkan() {
+  preload_vendor_icd_deps();
   vulkan_handle = dlopen("/system/lib64/libvulkan.so", RTLD_LOCAL | RTLD_NOW);
 }
 

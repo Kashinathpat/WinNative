@@ -105,7 +105,7 @@ public class Container {
     public void setExecutablePath(String executablePath) {
         String newPath = executablePath != null ? executablePath : "";
         // If the executable path changed from a non-empty value, mark as needing unpacking
-        // so Steamless DRM stripping will re-run on the new exe (matches GameNative)
+        // so Steamless DRM stripping will re-run on the new exe
         if (!this.executablePath.isEmpty() && !this.executablePath.equals(newPath)) {
             this.needsUnpacking = true;
         }

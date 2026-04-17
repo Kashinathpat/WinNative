@@ -212,7 +212,7 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         "ANDROID_SYSVSHM_SERVER",
         imageFs.getRootDir().getPath() + UnixSocketConfig.SYSVSHM_SERVER_PATH);
     envVars.put("FONTCONFIG_PATH", imageFs.getRootDir().getPath() + "/usr/etc/fonts");
-    // Match GameNative's BionicProgramLauncherComponent env vars for shell commands
+    // Env vars required for shell commands under the Bionic program launcher
     envVars.put("WINE_NO_DUPLICATE_EXPLORER", "1");
     envVars.put("PREFIX", imageFs.getRootDir().getPath() + "/usr");
     envVars.put("WINE_DISABLE_FULLSCREEN_HACK", "1");
@@ -241,8 +241,8 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
     mergeExternalEnvVars(envVars, envVars.get("LD_PRELOAD"), envVars.get("FAKE_EVDEV_DIR"));
 
     // For arm64ec Wine builds the wine binary is native ARM64 — call it directly
-    // with a fully-qualified path (matching GameNative's BionicProgramLauncherComponent).
-    // Wrapping with box64 causes it to fail ELF header detection and adds overhead.
+    // with a fully-qualified path. Wrapping with box64 causes it to fail ELF
+    // header detection and adds overhead.
     // For non-arm64ec, box64 translates the x86_64 Wine binary.
     String finalCommand;
     if (wineInfo != null && wineInfo.isArm64EC()) {
@@ -756,6 +756,22 @@ public class GuestProgramLauncherComponent extends EnvironmentComponent {
         ld_preload = ld_preload + ":";
       }
       ld_preload = ld_preload + fakeinputDest.getAbsolutePath();
+    }
+
+    // Samsung and some other OEMs ship a Vulkan ICD dep chain ending in
+    // /system_ext/lib64/libvendorutils.so that references OpenSSL's BIO_flush.
+    // Without libcrypto already mapped, vkCreateInstance fails with res=-9 and
+    // DXVK aborts with "Required Vulkan extension VK_KHR_surface not supported".
+    for (String cryptoCandidate :
+        new String[] {
+          "/apex/com.android.conscrypt/lib64/libcrypto.so",
+          "/system/lib64/libcrypto.so"
+        }) {
+      if (new File(cryptoCandidate).exists()) {
+        if (!ld_preload.isEmpty()) ld_preload = ld_preload + ":";
+        ld_preload = ld_preload + cryptoCandidate;
+        break;
+      }
     }
 
     File devInputDir = new File(imageFs.getRootDir(), "dev/input");
