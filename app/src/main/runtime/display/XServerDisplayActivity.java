@@ -332,6 +332,17 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
         }
     };
 
+    private final SharedPreferences.OnSharedPreferenceChangeListener prefListener = (sharedPreferences, key) -> {
+        if ("gyro_enabled".equals(key) || "mouse_gyro_enabled".equals(key)) {
+            boolean gyroEnabled = sharedPreferences.getBoolean("gyro_enabled", false) || sharedPreferences.getBoolean("mouse_gyro_enabled", false);
+            if (gyroEnabled) {
+                sensorManager.registerListener(gyroListener, gyroSensor, SensorManager.SENSOR_DELAY_GAME);
+            } else {
+                sensorManager.unregisterListener(gyroListener);
+            }
+        }
+    };
+
     private void createNotifcationChannel() {
         String name = "WinNative";
         String description = getString(R.string.session_xserver_notification_description);
@@ -541,8 +552,9 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
         // Initialize SensorManager
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         gyroSensor = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+        preferences.registerOnSharedPreferenceChangeListener(prefListener);
 
-        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
+        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", false) || preferences.getBoolean("mouse_gyro_enabled", false);
 
         if (gyroEnabled) {
             // Register the sensor event listener
@@ -1596,7 +1608,7 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
     public void onResume() {
         super.onResume();
         applyPreferredRefreshRate();
-        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
+        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", false) || preferences.getBoolean("mouse_gyro_enabled", false);
 
         if (gyroEnabled) {
             // Re-register the sensor listener when the activity is resumed
@@ -1621,7 +1633,7 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
     @Override
     public void onPause() {
         super.onPause();
-        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", true);
+        boolean gyroEnabled = preferences.getBoolean("gyro_enabled", false) || preferences.getBoolean("mouse_gyro_enabled", false);
 
         if (gyroEnabled) {
             // Unregister the sensor listener when the activity is paused
@@ -2173,6 +2185,9 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (preferences != null) {
+            preferences.unregisterOnSharedPreferenceChangeListener(prefListener);
+        }
         // Schedule a deferred update check 10 s after game exit
         UpdateChecker.INSTANCE.schedulePostGameCheck(this);
         if (inputDeviceManager != null) {
@@ -2409,6 +2424,10 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
     private boolean handleDrawerAction(int itemId) {
         final GLRenderer renderer = xServerView.getRenderer();
         switch (itemId) {
+            case R.id.main_menu_gyroscope:
+                showGyroSettingsDialog();
+                drawerLayout.closeDrawers();
+                break;
             case R.id.main_menu_keyboard:
                 AppUtils.showKeyboard(this);
                 drawerLayout.closeDrawers();
@@ -3642,6 +3661,53 @@ public class XServerDisplayActivity extends FixedFontScaleAppCompatActivity {
             startActivity(intent);
             finish();
         });
+    }
+
+    private void showGyroSettingsDialog() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Gyroscope Settings");
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        final android.widget.CheckBox cbEnabled = new android.widget.CheckBox(this);
+        cbEnabled.setText("Enable Gyroscope");
+        cbEnabled.setChecked(preferences.getBoolean("gyro_enabled", false));
+        layout.addView(cbEnabled);
+
+        final android.widget.CheckBox cbMouse = new android.widget.CheckBox(this);
+        cbMouse.setText("Mouse Emulation");
+        cbMouse.setChecked(preferences.getBoolean("mouse_gyro_enabled", false));
+        layout.addView(cbMouse);
+
+        android.widget.TextView scaleLabel = new android.widget.TextView(this);
+        scaleLabel.setText("Mouse Scale");
+        layout.addView(scaleLabel);
+
+        final android.widget.SeekBar scaleSlider = new android.widget.SeekBar(this);
+        scaleSlider.setMax(200);
+        scaleSlider.setProgress((int)preferences.getFloat("gyro_mouse_scale", 50.0f));
+        layout.addView(scaleSlider);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("OK", (dialog, which) -> {
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putBoolean("gyro_enabled", cbEnabled.isChecked());
+            editor.putBoolean("mouse_gyro_enabled", cbMouse.isChecked());
+            editor.putFloat("gyro_mouse_scale", (float)scaleSlider.getProgress());
+            editor.apply();
+            
+            boolean gyroEnabled = cbEnabled.isChecked() || cbMouse.isChecked();
+            if (gyroEnabled) {
+                sensorManager.registerListener(gyroListener, gyroSensor, SensorManager.SENSOR_DELAY_GAME);
+            } else {
+                sensorManager.unregisterListener(gyroListener);
+            }
+        });
+
+        builder.setNegativeButton("Cancel", null);
+        builder.show();
     }
 
     private void showInputControlsDialog() {

@@ -93,6 +93,8 @@ public class WinHandler {
   private float smoothedGyroY = 0.0f;
   private float currentGyroStickX = 0.0f;
   private float currentGyroStickY = 0.0f;
+  private float accumulatedGyroX = 0.0f;
+  private float accumulatedGyroY = 0.0f;
   private boolean gyroToggleEnabled = false;
   private boolean gyroActivatorPressed = false;
   private int lastGyroTargetSource = 0;
@@ -1080,6 +1082,11 @@ public class WinHandler {
 
   public void updateGyroData(float rawGyroX, float rawGyroY) {
     GyroSettings gyroSettings = getGyroSettings();
+    if (this.preferences.getBoolean("mouse_gyro_enabled", false)) {
+        updateGyroDataMouse(rawGyroX, rawGyroY, gyroSettings);
+        return;
+    }
+    
     if (!gyroSettings.enabled) {
       this.smoothedGyroX = 0.0f;
       this.smoothedGyroY = 0.0f;
@@ -1160,6 +1167,28 @@ public class WinHandler {
   }
 
   public void refreshControllerMappings() {}
+
+  private void updateGyroDataMouse(float rawGyroX, float rawGyroY, GyroSettings gyroSettings) {
+    if (Math.abs(rawGyroX) < gyroSettings.deadzone) rawGyroX = 0.0f;
+    if (Math.abs(rawGyroY) < gyroSettings.deadzone) rawGyroY = 0.0f;
+    if (gyroSettings.invertX) rawGyroX = -rawGyroX;
+    if (gyroSettings.invertY) rawGyroY = -rawGyroY;
+
+    float mouseScale = getFloatPreference("gyro_mouse_scale", 50.0f);
+    float scaledGyroX = gyroSettings.sensitivityX * rawGyroX;
+    float scaledGyroY = gyroSettings.sensitivityY * rawGyroY;
+
+    this.accumulatedGyroX += scaledGyroX * mouseScale;
+    this.accumulatedGyroY += scaledGyroY * mouseScale;
+
+    int dx = (int) this.accumulatedGyroX;
+    int dy = (int) this.accumulatedGyroY;
+    if (dx != 0 || dy != 0) {
+      mouseEvent(MouseEventFlags.MOVE, dx, dy, 0);
+      this.accumulatedGyroX -= dx;
+      this.accumulatedGyroY -= dy;
+    }
+  }
 
   private GyroSettings getGyroSettings() {
     GyroSettings settings = new GyroSettings();
