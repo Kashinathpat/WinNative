@@ -1132,7 +1132,7 @@ public class WinHandler {
       return;
     }
 
-    boolean gyroActive = updateGyroActivation(targetState, gyroSettings);
+    boolean gyroActive = updateGyroActivation(targetState, targetController != null ? targetController.state : null, gyroSettings);
     float nextGyroStickX = gyroActive ? clamp(this.smoothedGyroX, -1.0f, 1.0f) : 0.0f;
     float nextGyroStickY = gyroActive ? clamp(this.smoothedGyroY, -1.0f, 1.0f) : 0.0f;
 
@@ -1232,14 +1232,19 @@ public class WinHandler {
     if (this.lastGamepadSource == GAMEPAD_SOURCE_VIRTUAL && canUseVirtualGamepad()) {
       return GAMEPAD_SOURCE_VIRTUAL;
     }
-    if (canUseVirtualGamepad()) {
-      return GAMEPAD_SOURCE_VIRTUAL;
-    }
-    return getPreferredGyroController() != null ? GAMEPAD_SOURCE_CONTROLLER : GAMEPAD_SOURCE_NONE;
+    
+    // Fallback: prefer physical controller if connected, otherwise virtual
+    if (getPreferredGyroController() != null) return GAMEPAD_SOURCE_CONTROLLER;
+    if (canUseVirtualGamepad() || this.activity.getInputControlsView().getProfile() != null) return GAMEPAD_SOURCE_VIRTUAL;
+    
+    return GAMEPAD_SOURCE_NONE;
   }
 
   private ExternalController getPreferredGyroController() {
     if (this.currentController == null) {
+      // Try to find any connected game controller if none is active
+      ArrayList<ExternalController> controllers = ExternalController.getControllers();
+      if (!controllers.isEmpty()) return controllers.get(0);
       return null;
     }
     int deviceId = this.currentController.getDeviceId();
@@ -1303,7 +1308,8 @@ public class WinHandler {
       return false;
     }
     GamepadState targetState = getTargetGamepadState(source, controller);
-    return targetState != null && updateGyroActivation(targetState, gyroSettings);
+    // Pass both remapped and raw state to activation check
+    return targetState != null && updateGyroActivation(targetState, controller != null ? controller.state : null, gyroSettings);
   }
 
   private GamepadState getTargetGamepadState(int source, ExternalController controller) {
@@ -1323,8 +1329,11 @@ public class WinHandler {
     return controller.state;
   }
 
-  private boolean updateGyroActivation(GamepadState targetState, GyroSettings gyroSettings) {
-    boolean activatorPressed = isActivatorPressed(targetState, gyroSettings.activatorKeyCode);
+  private boolean updateGyroActivation(GamepadState targetState, GamepadState rawState, GyroSettings gyroSettings) {
+    // Check both remapped and raw state for the activator
+    boolean activatorPressed = isActivatorPressed(targetState, gyroSettings.activatorKeyCode) ||
+                               isActivatorPressed(rawState, gyroSettings.activatorKeyCode);
+    
     if (gyroSettings.mode == 1 && activatorPressed && !this.gyroActivatorPressed) {
       this.gyroToggleEnabled = !this.gyroToggleEnabled;
     }
