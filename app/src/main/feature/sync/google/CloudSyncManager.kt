@@ -13,6 +13,9 @@ import com.google.android.gms.games.snapshot.SnapshotContents
 import com.google.android.gms.games.snapshot.SnapshotMetadataChange
 import com.google.android.gms.tasks.Tasks
 import com.winlator.cmod.R
+import com.winlator.cmod.feature.stores.common.Store
+import com.winlator.cmod.feature.stores.common.StoreSessionBus
+import com.winlator.cmod.feature.stores.common.StoreSessionEvent
 import com.winlator.cmod.feature.stores.epic.service.EpicAuthManager
 import com.winlator.cmod.feature.stores.epic.service.EpicService
 import com.winlator.cmod.feature.stores.gog.service.GOGAuthManager
@@ -969,6 +972,7 @@ object CloudSyncManager {
             PrefManager.clientId = json.optLong("clientId", 0L)
             SteamService.initLoginStatus(context)
             SteamService.start(context)
+            StoreSessionBus.emit(StoreSessionEvent.SessionRestored(Store.STEAM))
             true
         }.getOrElse { error ->
             Timber.tag(TAG).e(error, "Failed to restore Steam login tokens")
@@ -986,6 +990,7 @@ object CloudSyncManager {
             file.writeBytes(bytes)
             EpicAuthManager.updateLoginStatus(context)
             EpicService.start(context)
+            StoreSessionBus.emit(StoreSessionEvent.SessionRestored(Store.EPIC))
             true
         }.getOrElse { error ->
             Timber.tag(TAG).e(error, "Failed to restore Epic login tokens")
@@ -1003,6 +1008,7 @@ object CloudSyncManager {
             file.writeBytes(bytes)
             GOGAuthManager.updateLoginStatus(context)
             GOGService.start(context)
+            StoreSessionBus.emit(StoreSessionEvent.SessionRestored(Store.GOG))
             true
         }.getOrElse { error ->
             Timber.tag(TAG).e(error, "Failed to restore GOG login tokens")

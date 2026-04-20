@@ -17,8 +17,17 @@ sealed class StoreSessionEvent {
         val reason: String,
     ) : StoreSessionEvent()
 
-    /** A silent token refresh just succeeded — purely informational. */
+    /** A silent token refresh just succeeded — purely informational (no UI). */
     data class SessionRefreshed(
+        override val store: Store,
+    ) : StoreSessionEvent()
+
+    /**
+     * Credentials were just restored from a Google Play Games cloud snapshot —
+     * user-visible so it's clear why they went from "signed out" to "signed in"
+     * without an explicit login prompt.
+     */
+    data class SessionRestored(
         override val store: Store,
     ) : StoreSessionEvent()
 }

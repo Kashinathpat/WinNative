@@ -735,25 +735,32 @@ class UnifiedActivity :
             com.winlator.cmod.feature.sync.google.CloudSyncManager.flushPendingAutoBackup(this@UnifiedActivity)
         }
 
-        // Surface store-session events (e.g. Epic refresh-token death) as toasts.
+        // Surface store-session events (e.g. Epic refresh-token death, cloud restore) as toasts.
         lifecycleScope.launch {
             com.winlator.cmod.feature.stores.common.StoreSessionBus.events.collect { event ->
+                val label =
+                    when (event.store) {
+                        com.winlator.cmod.feature.stores.common.Store.EPIC -> "Epic"
+                        com.winlator.cmod.feature.stores.common.Store.GOG -> "GOG"
+                        com.winlator.cmod.feature.stores.common.Store.STEAM -> "Steam"
+                    }
                 when (event) {
                     is com.winlator.cmod.feature.stores.common.StoreSessionEvent.SessionExpired -> {
-                        val label =
-                            when (event.store) {
-                                com.winlator.cmod.feature.stores.common.Store.EPIC -> "Epic"
-                                com.winlator.cmod.feature.stores.common.Store.GOG -> "GOG"
-                                com.winlator.cmod.feature.stores.common.Store.STEAM -> "Steam"
-                            }
                         com.winlator.cmod.shared.android.AppUtils.showToast(
                             this@UnifiedActivity,
                             "$label session expired — please sign in again",
                             android.widget.Toast.LENGTH_LONG,
                         )
                     }
+                    is com.winlator.cmod.feature.stores.common.StoreSessionEvent.SessionRestored -> {
+                        com.winlator.cmod.shared.android.AppUtils.showToast(
+                            this@UnifiedActivity,
+                            "$label session restored from cloud",
+                            android.widget.Toast.LENGTH_SHORT,
+                        )
+                    }
                     is com.winlator.cmod.feature.stores.common.StoreSessionEvent.SessionRefreshed -> {
-                        // informational — no UI surface yet
+                        // informational — no UI surface
                     }
                 }
             }
